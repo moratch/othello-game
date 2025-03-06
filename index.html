@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>オセロゲーム</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <div id="mode-selector">
+            <button onclick="startGame('human')">対人戦</button>
+            <select id="difficulty">
+                <option value="easy">簡単</option>
+                <option value="normal">普通</option>
+                <option value="hard">難しい</option>
+            </select>
+            <button onclick="startCpuGame()">CPU戦開始</button>
+        </div>
+        <div id="board-container"></div>
+        <div class="status-panel">
+            <div id="turn-display"></div>
+            <div id="score-board"></div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

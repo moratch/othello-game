@@ -1,0 +1,1818 @@
+class Game {
+    constructor() {
+        this.board = Array(8).fill().map(() => Array(8).fill(null));
+        this.currentPlayer = 'black';
+        this.scores = { black: 2, white: 2 };
+        this.gameMode = null;
+        this.cpuDifficulty = null;
+        this.lastFlippedDisks = [];
+        
+        this.initBoard();
+        this.setupEventListeners();
+    }
+
+    initBoard() {
+        this.board[3][3] = 'white';
+        this.board[3][4] = 'black';
+        this.board[4][3] = 'black';
+        this.board[4][4] = 'white';
+    }
+
+    setupEventListeners() {
+        document.getElementById('board-container').addEventListener('click', (e) => {
+            const cell = e.target.closest('.cell');
+            if (cell && this.gameMode) {
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                this.handleMove(x, y);
+            }
+        });
+    }
+
+    handleMove(x, y) {
+        if (this.isValidMove(x, y)) {
+            this.placeDisk(x, y);
+            this.flipDisks(x, y);
+            this.updateGameState();
+            
+            if (this.gameMode === 'cpu' && this.currentPlayer === 'white') {
+                setTimeout(() => this.makeCpuMove(), 800);
+            }
+        }
+    }
+
+    makeCpuMove() {
+        const cpu = new CPUTactics(this.cpuDifficulty);
+        const [x, y] = cpu.getMove(this.board);
+        if (x !== -1 && y !== -1) {
+            this.handleMove(x, y);
+        }
+    }
+
+    isValidMove(x, y) {
+        if (this.board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny]) return false;
+                if (this.board[nx][ny] === this.currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    placeDisk(x, y) {
+        this.board[x][y] = this.currentPlayer;
+        this.scores[this.currentPlayer]++;
+    }
+
+    flipDisks(x, y) {
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny] || this.board[nx][ny] === this.currentPlayer) break;
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && this.board[nx][ny] === this.currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    this.board[fx][fy] = this.currentPlayer;
+                    this.scores[this.currentPlayer]++;
+                    this.scores[this.currentPlayer === 'black' ? 'white' : 'black']--;
+                });
+            }
+        });
+    }
+
+    updateGameState() {
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+        
+        if (!this.hasValidMoves()) {
+            this.currentPlayer = originalPlayer;
+            
+            if (!this.hasValidMoves()) {
+                setTimeout(() => {
+                    alert(`ゲーム終了！ 黒: ${this.scores.black} - 白: ${this.scores.white}`);
+                    this.gameMode = null;
+                }, 100);
+            } else {
+                alert(`${this.currentPlayer === 'black' ? '黒' : '白'}のターンですが、有効な手がないためパスします。`);
+                this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+                this.updateGameState();
+            }
+        } else {
+            document.getElementById('turn-display').textContent = `現在のターン: ${this.currentPlayer === 'black' ? '黒' : '白'}`;
+            document.getElementById('score-board').textContent = `黒: ${this.scores.black} - 白: ${this.scores.white}`;
+            renderBoard(this.board);
+        }
+    }
+
+    hasValidMoves() {
+        return this.board.some((row, x) => 
+            row.some((_, y) => this.isValidMove(x, y))
+        );
+    }
+}
+
+class CPUTactics {
+    constructor(difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    getMove(board) {
+        switch(this.difficulty) {
+            case 'easy':
+                return this.randomMove(board);
+            case 'normal':
+                return this.greedyMove(board);
+            case 'hard':
+                return this.minimaxMove(board, 4);
+            default:
+                return [-1, -1];
+        }
+    }
+
+    randomMove(board) {
+        const validMoves = this.getValidMoves(board);
+        return validMoves.length > 0 
+            ? validMoves[Math.floor(Math.random() * validMoves.length)]
+            : [-1, -1];
+    }
+
+    getValidMoves(board) {
+        const moves = [];
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                if (this.isValidMove(board, x, y)) {
+                    moves.push([x, y]);
+                }
+            }
+        }
+        return moves;
+    }
+
+    isValidMove(board, x, y) {
+        if (board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        const currentPlayer = game.currentPlayer;
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!board[nx][ny]) return false;
+                if (board[nx][ny] === currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    greedyMove(board) {
+        const validMoves = this.getValidMoves(board);
+        let bestMove = [-1, -1];
+        let maxFlipped = 0;
+        
+        validMoves.forEach(([x, y]) => {
+            let flipped = 0;
+            const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+            
+            directions.forEach(([dx, dy]) => {
+                let nx = x + dx;
+                let ny = y + dy;
+            const opponent = game.currentPlayer === 'black' ? 'white' : 'black';
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                    flipped++;
+                    nx += dx;
+                    ny += dy;
+                }
+            });
+            
+            if (flipped > maxFlipped) {
+                maxFlipped = flipped;
+                bestMove = [x, y];
+            }
+        });
+        
+        return maxFlipped > 0 ? bestMove : [-1, -1];
+    }
+
+    minimaxMove(board, depth) {
+        let bestScore = -Infinity;
+        let bestMove = [-1, -1];
+        const validMoves = this.getValidMoves(board);
+        
+        validMoves.forEach(([x, y]) => {
+            const simulatedBoard = JSON.parse(JSON.stringify(board));
+            this.simulateMove(simulatedBoard, x, y);
+            const score = this.minimax(simulatedBoard, depth - 1, false, -Infinity, Infinity);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = [x, y];
+            }
+        });
+        
+        return bestMove;
+    }
+
+    minimax(board, depth, isMaximizing, alpha, beta) {
+        if (depth === 0) {
+            return this.evaluateBoard(board);
+        }
+        
+        const validMoves = this.getValidMoves(board);
+        
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, false, alpha, beta);
+                maxEval = Math.max(maxEval, currentEval);
+                alpha = Math.max(alpha, currentEval);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, true, alpha, beta);
+                minEval = Math.min(minEval, currentEval);
+                beta = Math.min(beta, currentEval);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    evaluateBoard(board) {
+        let score = 0;
+        const weights = [
+            [120, -20, 20, 5, 5, 20, -20, 120],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [120, -20, 20, 5, 5, 20, -20, 120]
+        ];
+        
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                const currentPlayer = game.currentPlayer;
+                const opponent = currentPlayer === 'black' ? 'white' : 'black';
+                if (board[x][y] === currentPlayer) score += weights[x][y];
+                if (board[x][y] === opponent) score -= weights[x][y];
+            }
+        }
+        return score;
+    }
+
+    simulateMove(board, x, y) {
+        const currentPlayer = game.currentPlayer;
+        const opponent = currentPlayer === 'black' ? 'white' : 'black';
+        board[x][y] = currentPlayer;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    board[fx][fy] = currentPlayer;
+                });
+            }
+        });
+    }
+}
+
+// ゲーム初期化関数
+function startGame(mode) {
+    window.game = new Game();
+    game.gameMode = mode;
+    renderBoard(game.board);
+}
+
+function startCpuGame() {
+    const difficulty = document.getElementById('difficulty').value;
+    window.game = new Game();
+    game.gameMode = 'cpu';
+    game.cpuDifficulty = difficulty;
+    renderBoard(game.board);
+}
+
+// 盤面描画関数
+function renderBoard(board) {
+    const container = document.getElementById('board-container');
+    container.innerHTML = '';
+    
+    board.forEach((row, x) => {
+        row.forEach((cell, y) => {
+            const cellElement = document.createElement('div');
+            cellElement.className = 'cell';
+            cellElement.dataset.x = x;
+            cellElement.dataset.y = y;
+            
+            if (cell) {
+                const disk = document.createElement('div');
+                const isNewDisk = game.board[x][y] === game.currentPlayer;
+                const isFlipped = game.lastFlippedDisks.some(([fx, fy]) => fx === x && fy === y);
+                disk.className = `disk ${cell} ${cell}-disk${isNewDisk ? ' new-disk' : ''}${isFlipped ? ' flipping' : ''}`;
+                cellElement.appendChild(disk);
+            }
+            container.appendChild(cellElement);
+        });
+    });
+    game.lastFlippedDisks = [];
+}
+class Game {
+    constructor() {
+        this.board = Array(8).fill().map(() => Array(8).fill(null));
+        this.currentPlayer = 'black';
+        this.scores = { black: 2, white: 2 };
+        this.gameMode = null;
+        this.cpuDifficulty = null;
+        this.lastFlippedDisks = [];
+        
+        this.initBoard();
+        this.setupEventListeners();
+    }
+
+    initBoard() {
+        this.board[3][3] = 'white';
+        this.board[3][4] = 'black';
+        this.board[4][3] = 'black';
+        this.board[4][4] = 'white';
+    }
+
+    setupEventListeners() {
+        document.getElementById('board-container').addEventListener('click', (e) => {
+            const cell = e.target.closest('.cell');
+            if (cell && this.gameMode) {
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                this.handleMove(x, y);
+            }
+        });
+    }
+
+    handleMove(x, y) {
+        if (this.isValidMove(x, y)) {
+            this.placeDisk(x, y);
+            this.flipDisks(x, y);
+            this.updateGameState();
+            
+            if (this.gameMode === 'cpu' && this.currentPlayer === 'white') {
+                setTimeout(() => this.makeCpuMove(), 800);
+            }
+        }
+    }
+
+    makeCpuMove() {
+        const cpu = new CPUTactics(this.cpuDifficulty);
+        const [x, y] = cpu.getMove(this.board);
+        if (x !== -1 && y !== -1) {
+            this.handleMove(x, y);
+        }
+    }
+
+    isValidMove(x, y) {
+        if (this.board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny]) return false;
+                if (this.board[nx][ny] === this.currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    placeDisk(x, y) {
+        this.board[x][y] = this.currentPlayer;
+        this.scores[this.currentPlayer]++;
+    }
+
+    flipDisks(x, y) {
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny] || this.board[nx][ny] === this.currentPlayer) break;
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && this.board[nx][ny] === this.currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    this.board[fx][fy] = this.currentPlayer;
+                    this.scores[this.currentPlayer]++;
+                    this.scores[this.currentPlayer === 'black' ? 'white' : 'black']--;
+                });
+            }
+        });
+    }
+
+    updateGameState() {
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+        
+        if (!this.hasValidMoves()) {
+            this.currentPlayer = originalPlayer;
+            
+            if (!this.hasValidMoves()) {
+                setTimeout(() => {
+                    alert(`ゲーム終了！ 黒: ${this.scores.black} - 白: ${this.scores.white}`);
+                    this.gameMode = null;
+                }, 100);
+            } else {
+                alert(`${this.currentPlayer === 'black' ? '黒' : '白'}のターンですが、有効な手がないためパスします。`);
+                this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+                this.updateGameState();
+            }
+        } else {
+            document.getElementById('turn-display').textContent = `現在のターン: ${this.currentPlayer === 'black' ? '黒' : '白'}`;
+            document.getElementById('score-board').textContent = `黒: ${this.scores.black} - 白: ${this.scores.white}`;
+            renderBoard(this.board);
+        }
+    }
+
+    hasValidMoves() {
+        return this.board.some((row, x) => 
+            row.some((_, y) => this.isValidMove(x, y))
+        );
+    }
+}
+
+class CPUTactics {
+    constructor(difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    getMove(board) {
+        switch(this.difficulty) {
+            case 'easy':
+                return this.randomMove(board);
+            case 'normal':
+                return this.greedyMove(board);
+            case 'hard':
+                return this.minimaxMove(board, 4);
+            default:
+                return [-1, -1];
+        }
+    }
+
+    randomMove(board) {
+        const validMoves = this.getValidMoves(board);
+        return validMoves.length > 0 
+            ? validMoves[Math.floor(Math.random() * validMoves.length)]
+            : [-1, -1];
+    }
+
+    getValidMoves(board) {
+        const moves = [];
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                if (this.isValidMove(board, x, y)) {
+                    moves.push([x, y]);
+                }
+            }
+        }
+        return moves;
+    }
+
+    isValidMove(board, x, y) {
+        if (board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        const currentPlayer = game.currentPlayer;
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!board[nx][ny]) return false;
+                if (board[nx][ny] === currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    greedyMove(board) {
+        const validMoves = this.getValidMoves(board);
+        let bestMove = [-1, -1];
+        let maxFlipped = 0;
+        
+        validMoves.forEach(([x, y]) => {
+            let flipped = 0;
+            const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+            
+            directions.forEach(([dx, dy]) => {
+                let nx = x + dx;
+                let ny = y + dy;
+            const opponent = game.currentPlayer === 'black' ? 'white' : 'black';
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                    flipped++;
+                    nx += dx;
+                    ny += dy;
+                }
+            });
+            
+            if (flipped > maxFlipped) {
+                maxFlipped = flipped;
+                bestMove = [x, y];
+            }
+        });
+        
+        return maxFlipped > 0 ? bestMove : [-1, -1];
+    }
+
+    minimaxMove(board, depth) {
+        let bestScore = -Infinity;
+        let bestMove = [-1, -1];
+        const validMoves = this.getValidMoves(board);
+        
+        validMoves.forEach(([x, y]) => {
+            const simulatedBoard = JSON.parse(JSON.stringify(board));
+            this.simulateMove(simulatedBoard, x, y);
+            const score = this.minimax(simulatedBoard, depth - 1, false, -Infinity, Infinity);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = [x, y];
+            }
+        });
+        
+        return bestMove;
+    }
+
+    minimax(board, depth, isMaximizing, alpha, beta) {
+        if (depth === 0) {
+            return this.evaluateBoard(board);
+        }
+        
+        const validMoves = this.getValidMoves(board);
+        
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, false, alpha, beta);
+                maxEval = Math.max(maxEval, currentEval);
+                alpha = Math.max(alpha, currentEval);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, true, alpha, beta);
+                minEval = Math.min(minEval, currentEval);
+                beta = Math.min(beta, currentEval);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    evaluateBoard(board) {
+        let score = 0;
+        const weights = [
+            [120, -20, 20, 5, 5, 20, -20, 120],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [120, -20, 20, 5, 5, 20, -20, 120]
+        ];
+        
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                const currentPlayer = game.currentPlayer;
+                const opponent = currentPlayer === 'black' ? 'white' : 'black';
+                if (board[x][y] === currentPlayer) score += weights[x][y];
+                if (board[x][y] === opponent) score -= weights[x][y];
+            }
+        }
+        return score;
+    }
+
+    simulateMove(board, x, y) {
+        const currentPlayer = game.currentPlayer;
+        const opponent = currentPlayer === 'black' ? 'white' : 'black';
+        board[x][y] = currentPlayer;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    board[fx][fy] = currentPlayer;
+                });
+            }
+        });
+    }
+}
+
+// ゲーム初期化関数
+function startGame(mode) {
+    window.game = new Game();
+    game.gameMode = mode;
+    renderBoard(game.board);
+}
+
+function startCpuGame() {
+    const difficulty = document.getElementById('difficulty').value;
+    window.game = new Game();
+    game.gameMode = 'cpu';
+    game.cpuDifficulty = difficulty;
+    renderBoard(game.board);
+}
+
+// 盤面描画関数
+function renderBoard(board) {
+    const container = document.getElementById('board-container');
+    container.innerHTML = '';
+    
+    board.forEach((row, x) => {
+        row.forEach((cell, y) => {
+            const cellElement = document.createElement('div');
+            cellElement.className = 'cell';
+            cellElement.dataset.x = x;
+            cellElement.dataset.y = y;
+            
+            if (cell) {
+                const disk = document.createElement('div');
+                const isNewDisk = game.board[x][y] === game.currentPlayer;
+                const isFlipped = game.lastFlippedDisks.some(([fx, fy]) => fx === x && fy === y);
+                disk.className = `disk ${cell} ${cell}-disk${isNewDisk ? ' new-disk' : ''}${isFlipped ? ' flipping' : ''}`;
+                cellElement.appendChild(disk);
+            }
+            container.appendChild(cellElement);
+        });
+    });
+    game.lastFlippedDisks = [];
+}
+class Game {
+    constructor() {
+        this.board = Array(8).fill().map(() => Array(8).fill(null));
+        this.currentPlayer = 'black';
+        this.scores = { black: 2, white: 2 };
+        this.gameMode = null;
+        this.cpuDifficulty = null;
+        this.lastFlippedDisks = [];
+        
+        this.initBoard();
+        this.setupEventListeners();
+    }
+
+    initBoard() {
+        this.board[3][3] = 'white';
+        this.board[3][4] = 'black';
+        this.board[4][3] = 'black';
+        this.board[4][4] = 'white';
+    }
+
+    setupEventListeners() {
+        document.getElementById('board-container').addEventListener('click', (e) => {
+            const cell = e.target.closest('.cell');
+            if (cell && this.gameMode) {
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                this.handleMove(x, y);
+            }
+        });
+    }
+
+    handleMove(x, y) {
+        if (this.isValidMove(x, y)) {
+            this.placeDisk(x, y);
+            this.flipDisks(x, y);
+            this.updateGameState();
+            
+            if (this.gameMode === 'cpu' && this.currentPlayer === 'white') {
+                setTimeout(() => this.makeCpuMove(), 800);
+            }
+        }
+    }
+
+    makeCpuMove() {
+        const cpu = new CPUTactics(this.cpuDifficulty);
+        const [x, y] = cpu.getMove(this.board);
+        if (x !== -1 && y !== -1) {
+            this.handleMove(x, y);
+        }
+    }
+
+    isValidMove(x, y) {
+        if (this.board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny]) return false;
+                if (this.board[nx][ny] === this.currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    placeDisk(x, y) {
+        this.board[x][y] = this.currentPlayer;
+        this.scores[this.currentPlayer]++;
+    }
+
+    flipDisks(x, y) {
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny] || this.board[nx][ny] === this.currentPlayer) break;
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && this.board[nx][ny] === this.currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    this.board[fx][fy] = this.currentPlayer;
+                    this.scores[this.currentPlayer]++;
+                    this.scores[this.currentPlayer === 'black' ? 'white' : 'black']--;
+                });
+            }
+        });
+    }
+
+    updateGameState() {
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+        
+        if (!this.hasValidMoves()) {
+            this.currentPlayer = originalPlayer;
+            
+            if (!this.hasValidMoves()) {
+                setTimeout(() => {
+                    alert(`ゲーム終了！ 黒: ${this.scores.black} - 白: ${this.scores.white}`);
+                    this.gameMode = null;
+                }, 100);
+            } else {
+                alert(`${this.currentPlayer === 'black' ? '黒' : '白'}のターンですが、有効な手がないためパスします。`);
+                this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+                this.updateGameState();
+            }
+        } else {
+            document.getElementById('turn-display').textContent = `現在のターン: ${this.currentPlayer === 'black' ? '黒' : '白'}`;
+            document.getElementById('score-board').textContent = `黒: ${this.scores.black} - 白: ${this.scores.white}`;
+            renderBoard(this.board);
+        }
+    }
+
+    hasValidMoves() {
+        return this.board.some((row, x) => 
+            row.some((_, y) => this.isValidMove(x, y))
+        );
+    }
+}
+
+class CPUTactics {
+    constructor(difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    getMove(board) {
+        switch(this.difficulty) {
+            case 'easy':
+                return this.randomMove(board);
+            case 'normal':
+                return this.greedyMove(board);
+            case 'hard':
+                return this.minimaxMove(board, 4);
+            default:
+                return [-1, -1];
+        }
+    }
+
+    randomMove(board) {
+        const validMoves = this.getValidMoves(board);
+        return validMoves.length > 0 
+            ? validMoves[Math.floor(Math.random() * validMoves.length)]
+            : [-1, -1];
+    }
+
+    getValidMoves(board) {
+        const moves = [];
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                if (this.isValidMove(board, x, y)) {
+                    moves.push([x, y]);
+                }
+            }
+        }
+        return moves;
+    }
+
+    isValidMove(board, x, y) {
+        if (board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        const currentPlayer = game.currentPlayer;
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!board[nx][ny]) return false;
+                if (board[nx][ny] === currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    greedyMove(board) {
+        const validMoves = this.getValidMoves(board);
+        let bestMove = [-1, -1];
+        let maxFlipped = 0;
+        
+        validMoves.forEach(([x, y]) => {
+            let flipped = 0;
+            const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+            
+            directions.forEach(([dx, dy]) => {
+                let nx = x + dx;
+                let ny = y + dy;
+            const opponent = game.currentPlayer === 'black' ? 'white' : 'black';
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                    flipped++;
+                    nx += dx;
+                    ny += dy;
+                }
+            });
+            
+            if (flipped > maxFlipped) {
+                maxFlipped = flipped;
+                bestMove = [x, y];
+            }
+        });
+        
+        return maxFlipped > 0 ? bestMove : [-1, -1];
+    }
+
+    minimaxMove(board, depth) {
+        let bestScore = -Infinity;
+        let bestMove = [-1, -1];
+        const validMoves = this.getValidMoves(board);
+        
+        validMoves.forEach(([x, y]) => {
+            const simulatedBoard = JSON.parse(JSON.stringify(board));
+            this.simulateMove(simulatedBoard, x, y);
+            const score = this.minimax(simulatedBoard, depth - 1, false, -Infinity, Infinity);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = [x, y];
+            }
+        });
+        
+        return bestMove;
+    }
+
+    minimax(board, depth, isMaximizing, alpha, beta) {
+        if (depth === 0) {
+            return this.evaluateBoard(board);
+        }
+        
+        const validMoves = this.getValidMoves(board);
+        
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, false, alpha, beta);
+                maxEval = Math.max(maxEval, currentEval);
+                alpha = Math.max(alpha, currentEval);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, true, alpha, beta);
+                minEval = Math.min(minEval, currentEval);
+                beta = Math.min(beta, currentEval);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    evaluateBoard(board) {
+        let score = 0;
+        const weights = [
+            [120, -20, 20, 5, 5, 20, -20, 120],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [120, -20, 20, 5, 5, 20, -20, 120]
+        ];
+        
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                const currentPlayer = game.currentPlayer;
+                const opponent = currentPlayer === 'black' ? 'white' : 'black';
+                if (board[x][y] === currentPlayer) score += weights[x][y];
+                if (board[x][y] === opponent) score -= weights[x][y];
+            }
+        }
+        return score;
+    }
+
+    simulateMove(board, x, y) {
+        const currentPlayer = game.currentPlayer;
+        const opponent = currentPlayer === 'black' ? 'white' : 'black';
+        board[x][y] = currentPlayer;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    board[fx][fy] = currentPlayer;
+                });
+            }
+        });
+    }
+}
+
+// ゲーム初期化関数
+function startGame(mode) {
+    window.game = new Game();
+    game.gameMode = mode;
+    renderBoard(game.board);
+}
+
+function startCpuGame() {
+    const difficulty = document.getElementById('difficulty').value;
+    window.game = new Game();
+    game.gameMode = 'cpu';
+    game.cpuDifficulty = difficulty;
+    renderBoard(game.board);
+}
+
+// 盤面描画関数
+function renderBoard(board) {
+    const container = document.getElementById('board-container');
+    container.innerHTML = '';
+    
+    board.forEach((row, x) => {
+        row.forEach((cell, y) => {
+            const cellElement = document.createElement('div');
+            cellElement.className = 'cell';
+            cellElement.dataset.x = x;
+            cellElement.dataset.y = y;
+            
+            if (cell) {
+                const disk = document.createElement('div');
+                const isNewDisk = game.board[x][y] === game.currentPlayer;
+                const isFlipped = game.lastFlippedDisks.some(([fx, fy]) => fx === x && fy === y);
+                disk.className = `disk ${cell} ${cell}-disk${isNewDisk ? ' new-disk' : ''}${isFlipped ? ' flipping' : ''}`;
+                cellElement.appendChild(disk);
+            }
+            container.appendChild(cellElement);
+        });
+    });
+    game.lastFlippedDisks = [];
+}
+class Game {
+    constructor() {
+        this.board = Array(8).fill().map(() => Array(8).fill(null));
+        this.currentPlayer = 'black';
+        this.scores = { black: 2, white: 2 };
+        this.gameMode = null;
+        this.cpuDifficulty = null;
+        this.lastFlippedDisks = [];
+        
+        this.initBoard();
+        this.setupEventListeners();
+    }
+
+    initBoard() {
+        this.board[3][3] = 'white';
+        this.board[3][4] = 'black';
+        this.board[4][3] = 'black';
+        this.board[4][4] = 'white';
+    }
+
+    setupEventListeners() {
+        document.getElementById('board-container').addEventListener('click', (e) => {
+            const cell = e.target.closest('.cell');
+            if (cell && this.gameMode) {
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                this.handleMove(x, y);
+            }
+        });
+    }
+
+    handleMove(x, y) {
+        if (this.isValidMove(x, y)) {
+            this.placeDisk(x, y);
+            this.flipDisks(x, y);
+            this.updateGameState();
+            
+            if (this.gameMode === 'cpu' && this.currentPlayer === 'white') {
+                setTimeout(() => this.makeCpuMove(), 800);
+            }
+        }
+    }
+
+    makeCpuMove() {
+        const cpu = new CPUTactics(this.cpuDifficulty);
+        const [x, y] = cpu.getMove(this.board);
+        if (x !== -1 && y !== -1) {
+            this.handleMove(x, y);
+        }
+    }
+
+    isValidMove(x, y) {
+        if (this.board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny]) return false;
+                if (this.board[nx][ny] === this.currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    placeDisk(x, y) {
+        this.board[x][y] = this.currentPlayer;
+        this.scores[this.currentPlayer]++;
+    }
+
+    flipDisks(x, y) {
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny] || this.board[nx][ny] === this.currentPlayer) break;
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && this.board[nx][ny] === this.currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    this.board[fx][fy] = this.currentPlayer;
+                    this.scores[this.currentPlayer]++;
+                    this.scores[this.currentPlayer === 'black' ? 'white' : 'black']--;
+                });
+            }
+        });
+    }
+
+    updateGameState() {
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+        
+        if (!this.hasValidMoves()) {
+            this.currentPlayer = originalPlayer;
+            
+            if (!this.hasValidMoves()) {
+                setTimeout(() => {
+                    alert(`ゲーム終了！ 黒: ${this.scores.black} - 白: ${this.scores.white}`);
+                    this.gameMode = null;
+                }, 100);
+            } else {
+                alert(`${this.currentPlayer === 'black' ? '黒' : '白'}のターンですが、有効な手がないためパスします。`);
+                this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+                this.updateGameState();
+            }
+        } else {
+            document.getElementById('turn-display').textContent = `現在のターン: ${this.currentPlayer === 'black' ? '黒' : '白'}`;
+            document.getElementById('score-board').textContent = `黒: ${this.scores.black} - 白: ${this.scores.white}`;
+            renderBoard(this.board);
+        }
+    }
+
+    hasValidMoves() {
+        return this.board.some((row, x) => 
+            row.some((_, y) => this.isValidMove(x, y))
+        );
+    }
+}
+
+class CPUTactics {
+    constructor(difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    getMove(board) {
+        switch(this.difficulty) {
+            case 'easy':
+                return this.randomMove(board);
+            case 'normal':
+                return this.greedyMove(board);
+            case 'hard':
+                return this.minimaxMove(board, 4);
+            default:
+                return [-1, -1];
+        }
+    }
+
+    randomMove(board) {
+        const validMoves = this.getValidMoves(board);
+        return validMoves.length > 0 
+            ? validMoves[Math.floor(Math.random() * validMoves.length)]
+            : [-1, -1];
+    }
+
+    getValidMoves(board) {
+        const moves = [];
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                if (this.isValidMove(board, x, y)) {
+                    moves.push([x, y]);
+                }
+            }
+        }
+        return moves;
+    }
+
+    isValidMove(board, x, y) {
+        if (board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        const currentPlayer = game.currentPlayer;
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!board[nx][ny]) return false;
+                if (board[nx][ny] === currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    greedyMove(board) {
+        const validMoves = this.getValidMoves(board);
+        let bestMove = [-1, -1];
+        let maxFlipped = 0;
+        
+        validMoves.forEach(([x, y]) => {
+            let flipped = 0;
+            const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+            
+            directions.forEach(([dx, dy]) => {
+                let nx = x + dx;
+                let ny = y + dy;
+            const opponent = game.currentPlayer === 'black' ? 'white' : 'black';
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                    flipped++;
+                    nx += dx;
+                    ny += dy;
+                }
+            });
+            
+            if (flipped > maxFlipped) {
+                maxFlipped = flipped;
+                bestMove = [x, y];
+            }
+        });
+        
+        return maxFlipped > 0 ? bestMove : [-1, -1];
+    }
+
+    minimaxMove(board, depth) {
+        let bestScore = -Infinity;
+        let bestMove = [-1, -1];
+        const validMoves = this.getValidMoves(board);
+        
+        validMoves.forEach(([x, y]) => {
+            const simulatedBoard = JSON.parse(JSON.stringify(board));
+            this.simulateMove(simulatedBoard, x, y);
+            const score = this.minimax(simulatedBoard, depth - 1, false, -Infinity, Infinity);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = [x, y];
+            }
+        });
+        
+        return bestMove;
+    }
+
+    minimax(board, depth, isMaximizing, alpha, beta) {
+        if (depth === 0) {
+            return this.evaluateBoard(board);
+        }
+        
+        const validMoves = this.getValidMoves(board);
+        
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, false, alpha, beta);
+                maxEval = Math.max(maxEval, currentEval);
+                alpha = Math.max(alpha, currentEval);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, true, alpha, beta);
+                minEval = Math.min(minEval, currentEval);
+                beta = Math.min(beta, currentEval);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    evaluateBoard(board) {
+        let score = 0;
+        const weights = [
+            [120, -20, 20, 5, 5, 20, -20, 120],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [120, -20, 20, 5, 5, 20, -20, 120]
+        ];
+        
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                const currentPlayer = game.currentPlayer;
+                const opponent = currentPlayer === 'black' ? 'white' : 'black';
+                if (board[x][y] === currentPlayer) score += weights[x][y];
+                if (board[x][y] === opponent) score -= weights[x][y];
+            }
+        }
+        return score;
+    }
+
+    simulateMove(board, x, y) {
+        const currentPlayer = game.currentPlayer;
+        const opponent = currentPlayer === 'black' ? 'white' : 'black';
+        board[x][y] = currentPlayer;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    board[fx][fy] = currentPlayer;
+                });
+            }
+        });
+    }
+}
+
+// ゲーム初期化関数
+function startGame(mode) {
+    window.game = new Game();
+    game.gameMode = mode;
+    renderBoard(game.board);
+}
+
+function startCpuGame() {
+    const difficulty = document.getElementById('difficulty').value;
+    window.game = new Game();
+    game.gameMode = 'cpu';
+    game.cpuDifficulty = difficulty;
+    renderBoard(game.board);
+}
+
+// 盤面描画関数
+function renderBoard(board) {
+    const container = document.getElementById('board-container');
+    container.innerHTML = '';
+    
+    board.forEach((row, x) => {
+        row.forEach((cell, y) => {
+            const cellElement = document.createElement('div');
+            cellElement.className = 'cell';
+            cellElement.dataset.x = x;
+            cellElement.dataset.y = y;
+            
+            if (cell) {
+                const disk = document.createElement('div');
+                const isNewDisk = game.board[x][y] === game.currentPlayer;
+                const isFlipped = game.lastFlippedDisks.some(([fx, fy]) => fx === x && fy === y);
+                disk.className = `disk ${cell} ${cell}-disk${isNewDisk ? ' new-disk' : ''}${isFlipped ? ' flipping' : ''}`;
+                cellElement.appendChild(disk);
+            }
+            game.lastFlippedDisks = [];
+        });
+    });
+}
+class Game {
+    constructor() {
+        this.board = Array(8).fill().map(() => Array(8).fill(null));
+        this.currentPlayer = 'black';
+        this.scores = { black: 2, white: 2 };
+        this.gameMode = null;
+        this.cpuDifficulty = null;
+        this.lastFlippedDisks = [];
+        
+        this.initBoard();
+        this.setupEventListeners();
+    }
+
+    initBoard() {
+        this.board[3][3] = 'white';
+        this.board[3][4] = 'black';
+        this.board[4][3] = 'black';
+        this.board[4][4] = 'white';
+    }
+
+    setupEventListeners() {
+        document.getElementById('board-container').addEventListener('click', (e) => {
+            const cell = e.target.closest('.cell');
+            if (cell && this.gameMode) {
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                this.handleMove(x, y);
+            }
+        });
+    }
+
+    handleMove(x, y) {
+        if (this.isValidMove(x, y)) {
+            this.placeDisk(x, y);
+            this.flipDisks(x, y);
+            this.updateGameState();
+            
+            if (this.gameMode === 'cpu' && this.currentPlayer === 'white') {
+                setTimeout(() => this.makeCpuMove(), 800);
+            }
+        }
+    }
+
+    makeCpuMove() {
+        const cpu = new CPUTactics(this.cpuDifficulty);
+        const [x, y] = cpu.getMove(this.board);
+        if (x !== -1 && y !== -1) {
+            this.handleMove(x, y);
+        }
+    }
+
+    isValidMove(x, y) {
+        if (this.board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny]) return false;
+                if (this.board[nx][ny] === this.currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    placeDisk(x, y) {
+        this.board[x][y] = this.currentPlayer;
+        this.scores[this.currentPlayer]++;
+    }
+
+    flipDisks(x, y) {
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!this.board[nx][ny] || this.board[nx][ny] === this.currentPlayer) break;
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && this.board[nx][ny] === this.currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    this.board[fx][fy] = this.currentPlayer;
+                    this.scores[this.currentPlayer]++;
+                    this.scores[this.currentPlayer === 'black' ? 'white' : 'black']--;
+                });
+            }
+        });
+    }
+
+    updateGameState() {
+        const originalPlayer = this.currentPlayer;
+        this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+        
+        if (!this.hasValidMoves()) {
+            this.currentPlayer = originalPlayer;
+            
+            if (!this.hasValidMoves()) {
+                setTimeout(() => {
+                    alert(`ゲーム終了！ 黒: ${this.scores.black} - 白: ${this.scores.white}`);
+                    this.gameMode = null;
+                }, 100);
+            } else {
+                alert(`${this.currentPlayer === 'black' ? '黒' : '白'}のターンですが、有効な手がないためパスします。`);
+                this.currentPlayer = this.currentPlayer === 'black' ? 'white' : 'black';
+                this.updateGameState();
+            }
+        } else {
+            document.getElementById('turn-display').textContent = `現在のターン: ${this.currentPlayer === 'black' ? '黒' : '白'}`;
+            document.getElementById('score-board').textContent = `黒: ${this.scores.black} - 白: ${this.scores.white}`;
+            renderBoard(this.board);
+        }
+    }
+
+    hasValidMoves() {
+        return this.board.some((row, x) => 
+            row.some((_, y) => this.isValidMove(x, y))
+        );
+    }
+}
+
+class CPUTactics {
+    constructor(difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    getMove(board) {
+        switch(this.difficulty) {
+            case 'easy':
+                return this.randomMove(board);
+            case 'normal':
+                return this.greedyMove(board);
+            case 'hard':
+                return this.minimaxMove(board, 4);
+            default:
+                return [-1, -1];
+        }
+    }
+
+    randomMove(board) {
+        const validMoves = this.getValidMoves(board);
+        return validMoves.length > 0 
+            ? validMoves[Math.floor(Math.random() * validMoves.length)]
+            : [-1, -1];
+    }
+
+    getValidMoves(board) {
+        const moves = [];
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                if (this.isValidMove(board, x, y)) {
+                    moves.push([x, y]);
+                }
+            }
+        }
+        return moves;
+    }
+
+    isValidMove(board, x, y) {
+        if (board[x][y] !== null) return false;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        const currentPlayer = game.currentPlayer;
+        
+        return directions.some(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            let foundOpponent = false;
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8) {
+                if (!board[nx][ny]) return false;
+                if (board[nx][ny] === currentPlayer) {
+                    return foundOpponent;
+                }
+                foundOpponent = true;
+                nx += dx;
+                ny += dy;
+            }
+            return false;
+        });
+    }
+
+    greedyMove(board) {
+        const validMoves = this.getValidMoves(board);
+        let bestMove = [-1, -1];
+        let maxFlipped = 0;
+        
+        validMoves.forEach(([x, y]) => {
+            let flipped = 0;
+            const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+            
+            directions.forEach(([dx, dy]) => {
+                let nx = x + dx;
+                let ny = y + dy;
+            const opponent = game.currentPlayer === 'black' ? 'white' : 'black';
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                    flipped++;
+                    nx += dx;
+                    ny += dy;
+                }
+            });
+            
+            if (flipped > maxFlipped) {
+                maxFlipped = flipped;
+                bestMove = [x, y];
+            }
+        });
+        
+        return maxFlipped > 0 ? bestMove : [-1, -1];
+    }
+
+    minimaxMove(board, depth) {
+        let bestScore = -Infinity;
+        let bestMove = [-1, -1];
+        const validMoves = this.getValidMoves(board);
+        
+        validMoves.forEach(([x, y]) => {
+            const simulatedBoard = JSON.parse(JSON.stringify(board));
+            this.simulateMove(simulatedBoard, x, y);
+            const score = this.minimax(simulatedBoard, depth - 1, false, -Infinity, Infinity);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = [x, y];
+            }
+        });
+        
+        return bestMove;
+    }
+
+    minimax(board, depth, isMaximizing, alpha, beta) {
+        if (depth === 0) {
+            return this.evaluateBoard(board);
+        }
+        
+        const validMoves = this.getValidMoves(board);
+        
+        if (isMaximizing) {
+            let maxEval = -Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, false, alpha, beta);
+                maxEval = Math.max(maxEval, currentEval);
+                alpha = Math.max(alpha, currentEval);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const [x, y] of validMoves) {
+                const newBoard = JSON.parse(JSON.stringify(board));
+                this.simulateMove(newBoard, x, y);
+                const currentEval = this.minimax(newBoard, depth - 1, true, alpha, beta);
+                minEval = Math.min(minEval, currentEval);
+                beta = Math.min(beta, currentEval);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    evaluateBoard(board) {
+        let score = 0;
+        const weights = [
+            [120, -20, 20, 5, 5, 20, -20, 120],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [5, -5, 3, 3, 3, 3, -5, 5],
+            [20, -5, 15, 3, 3, 15, -5, 20],
+            [-20, -40, -5, -5, -5, -5, -40, -20],
+            [120, -20, 20, 5, 5, 20, -20, 120]
+        ];
+        
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                const currentPlayer = game.currentPlayer;
+                const opponent = currentPlayer === 'black' ? 'white' : 'black';
+                if (board[x][y] === currentPlayer) score += weights[x][y];
+                if (board[x][y] === opponent) score -= weights[x][y];
+            }
+        }
+        return score;
+    }
+
+    simulateMove(board, x, y) {
+        const currentPlayer = game.currentPlayer;
+        const opponent = currentPlayer === 'black' ? 'white' : 'black';
+        board[x][y] = currentPlayer;
+        const directions = [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]];
+        
+        directions.forEach(([dx, dy]) => {
+            let nx = x + dx;
+            let ny = y + dy;
+            const disksToFlip = [];
+            
+            while (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === opponent) {
+                disksToFlip.push([nx, ny]);
+                nx += dx;
+                ny += dy;
+            }
+            
+            if (nx >= 0 && nx < 8 && ny >= 0 && ny < 8 && board[nx][ny] === currentPlayer) {
+                disksToFlip.forEach(([fx, fy]) => {
+                    board[fx][fy] = currentPlayer;
+                });
+            }
+        });
+    }
+}
+
+// ゲーム初期化関数
+function startGame(mode) {
+    window.game = new Game();
+    game.gameMode = mode;
+    renderBoard(game.board);
+}
+
+function startCpuGame() {
+    const difficulty = document.getElementById('difficulty').value;
+    window.game = new Game();
+    game.gameMode = 'cpu';
+    game.cpuDifficulty = difficulty;
+    renderBoard(game.board);
+}
+
+// 盤面描画関数
+function renderBoard(board) {
+    const container = document.getElementById('board-container');
+    container.innerHTML = '';
+    
+    board.forEach((row, x) => {
+        row.forEach((cell, y) => {
+            const cellElement = document.createElement('div');
+            cellElement.className = 'cell';
+            cellElement.dataset.x = x;
+            cellElement.dataset.y = y;
+            
+            if (cell) {
+                const disk = document.createElement('div');
+                const isNewDisk = game.board[x][y] === game.currentPlayer;
+                const isFlipped = game.lastFlippedDisks.some(([fx, fy]) => fx === x && fy === y);
+                disk.className = `disk ${cell} ${cell}-disk${isNewDisk ? ' new-disk' : ''}${isFlipped ? ' flipping' : ''}`;
+                cellElement.appendChild(disk);
+            }
+            container.appendChild(cellElement);
+        });
+    });
+}
+
+// 初期化
+document.addEventListener('DOMContentLoaded', () => {
+    renderBoard(Array(8).fill().map(() => Array(8).fill(null)));
+});
