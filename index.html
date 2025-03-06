@@ -7,21 +7,13 @@
 </head>
 <body>
     <div class="game-container">
-        <div id="mode-selector">
-            <button onclick="startGame('human')">対人戦</button>
-            <select id="difficulty">
-                <option value="easy">簡単</option>
-                <option value="normal">普通</option>
-                <option value="hard">難しい</option>
-            </select>
-            <button onclick="startCpuGame()">CPU戦開始</button>
-        </div>
-        <div id="board-container"></div>
-        <div class="status-panel">
-            <div id="turn-display"></div>
-            <div id="score-board"></div>
+        <h1>オセロ</h1>
+        <div id="board-container" class="board-grid"></div>
+        <div id="status-panel" class="status-panel">
+            <div class="player-turn">現在のプレイヤー: <span id="current-player">黒</span></div>
+            <div class="score">黒: <span id="black-score">2</span> 白: <span id="white-score">2</span></div>
         </div>
     </div>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
